@@ -2,6 +2,8 @@
 
 Computational search for the smallest open case of the Hadamard conjecture: a Hadamard matrix of order 668, via Legendre pairs of length 333.
 
+[Computational Report](https://www.ulam.ai/research/frontier-had.pdf) | [Frontier Math Open Problem](https://epoch.ai/frontiermath/open-problems/hadamard)
+
 ## The Problem
 
 A **Hadamard matrix** of order $n$ is an $n \times n$ matrix with entries $\pm 1$ satisfying $HH^\top = nI$. The Hadamard conjecture asserts one exists whenever $4 \mid n$. The smallest open case is $n = 668$.
