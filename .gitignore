@@ -1,0 +1,10 @@
+# Compiled binaries
+sa37
+sa37v2
+descent37
+phase_search
+
+# Temp logs
+*.txt
+__pycache__/
+*.pyc

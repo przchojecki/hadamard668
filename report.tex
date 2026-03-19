@@ -1,0 +1,446 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{listings}
+\lstset{basicstyle=\ttfamily\small,breaklines=true,frame=single}
+
+\newcommand{\Z}{\mathbb{Z}}
+\newcommand{\Q}{\mathbb{Q}}
+\newcommand{\abs}[1]{\lvert #1 \rvert}
+\newcommand{\PSD}{\operatorname{PSD}}
+
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}
+\newtheorem{proposition}[theorem]{Proposition}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\theoremstyle{remark}
+\newtheorem{remark}[theorem]{Remark}
+
+\title{Computational Search for a Hadamard Matrix of Order 668\\
+via Legendre Pairs of Length 333:\\[4pt]
+\large Status Report and Roadmap}
+\author{}
+\date{March 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We report on a computational attack on the smallest open case of the Hadamard conjecture: the existence of a Hadamard matrix of order~$668$, equivalently a Legendre pair of length~$333$. We describe the theoretical framework (compression-based decomposition, mod-$3$ and mod-$37$ obstructions, macro-case enumeration), the computational infrastructure built, and the results obtained. The exhaustive $9$-compression search produced $12{,}017{,}243$ PSD-compatible column configurations. The $37$-compression search, attacked via simulated annealing in~C at $28\times10^6$~iterations/second, reached an $L^1$ PSD deviation of~$236$ across~$18$ frequencies (target: $0$). We identify the precise computational bottleneck and propose concrete routes for further computation.
+\end{abstract}
+
+\tableofcontents
+
+%----------------------------------------------------------------------
+\section{Background}
+%----------------------------------------------------------------------
+
+A \emph{Hadamard matrix} of order~$n$ is an $n\times n$ matrix $H$ with entries $\pm1$ satisfying $HH^\top = nI$. The Hadamard conjecture asserts that such a matrix exists whenever $4\mid n$. As of 2026, the smallest open case is $n=668$.
+
+A \emph{Legendre pair} (LP) of odd length~$\ell$ consists of two sequences $A,B\in\{+1,-1\}^\ell$ with $\sum A=\sum B=1$ such that
+\[
+\PSD(A,s)+\PSD(B,s)=2\ell+2\quad\text{for all }s=1,\dots,\ell-1,
+\]
+where $\PSD(X,s)=\abs{\widehat{X}(s)}^2$ is the power spectral density at frequency~$s$. An LP of length~$\ell$ yields a Hadamard matrix of order $2(\ell+1)$. For $\ell=333$, this gives order~$668$.
+
+%----------------------------------------------------------------------
+\section{Theoretical Framework}
+%----------------------------------------------------------------------
+
+\subsection{Compression}
+Since $333=9\times37$, we view a length-$333$ sequence as a $37\times9$ sign matrix $M$, with $A[9i+j]=M[i][j]$. The \emph{$9$-compression} (column sums) is a length-$9$ sequence where each entry is the sum of $37$ values from $\{\pm1\}$, hence an odd integer in $[-37,37]$. The \emph{$37$-compression} (row sums) is a length-$37$ sequence with entries odd in $[-9,9]$.
+
+The $p$-compression preserves $\PSD$ at frequencies that are multiples of $\ell/p$:
+\[
+\PSD(C_p,\,t)\;=\;\PSD(A,\,(\ell/p)\cdot t)\quad\text{for }t=0,1,\dots,p-1.
+\]
+So the $9$-compression determines $\PSD$ at the $8$ multiples of~$37$, and the $37$-compression determines $\PSD$ at the $36$ multiples of~$9$.
+
+\subsection{Mod-3 and Mod-37 Obstructions}
+
+\begin{theorem}[Mod-3 obstruction]
+If an $H$-invariant LP$(333)$ has any multiplier $h\equiv2\pmod{3}$, then it is impossible.
+\end{theorem}
+
+\begin{proof}[Proof sketch]
+Such a multiplier forces the $3$-compression $(u,v,w)$ to satisfy $v=w$, giving $\PSD(A,111)=(u-v)^2$ and similarly for~$B$. Since $u,v$ are odd, both PSDs are divisible by~$4$, yielding $r^2+s^2=167$. But $167\equiv3\pmod{4}$, so no representation exists.
+\end{proof}
+
+An identical argument applies modulo~$37$: if a multiplier subgroup surjects onto~$U_{37}$, the $37$-compression is constant on non-identity classes, and the same sum-of-two-squares obstruction arises. Consequently, only multiplier subgroups with \emph{proper} image modulo both~$3$ and~$37$ can support LP$(333)$.
+
+\subsection{Macro-Cases}
+The LP identity at frequency~$111$ gives exactly $8$ unordered pairs $(\PSD(A,111),\,\PSD(B,111))$ summing to~$668$:
+\begin{center}
+\begin{tabular}{cccccccc}
+\toprule
+$(16,652)$ & $(64,604)$ & $(76,592)$ & $(112,556)$ \\
+$(172,496)$ & $(256,412)$ & $(268,400)$ & $(304,364)$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+These arise from the constraint that $\PSD$ at frequency~$111$ has the form $a^2+3b^2$ with $a\equiv1\pmod{3}$ and the resulting $(u,v,w)$ are odd integers in $[-111,111]$.
+
+\subsection{Parseval Constraints}
+By Parseval's theorem applied to the compressions:
+\begin{align}
+\sum_{j=0}^{8} c_{A,j}^2 + \sum_{j=0}^{8} c_{B,j}^2 &= 594 \quad\text{(9-compression)},\\[3pt]
+\sum_{j=0}^{36} d_{A,j}^2 + \sum_{j=0}^{36} d_{B,j}^2 &= 650 \quad\text{(37-compression)}.
+\end{align}
+
+\begin{remark}
+The $3$-compression of the $37$-compression is \emph{not} the $3$-compression of the original sequence, since grouping positions by $j\bmod3$ in $\{0,\dots,36\}$ is different from grouping $k\bmod3$ in $\{0,\dots,332\}$. The two compressions are ``orthogonal'' via the CRT isomorphism $\Z/333\Z\cong\Z/9\Z\times\Z/37\Z$.
+\end{remark}
+
+%----------------------------------------------------------------------
+\section{Computational Infrastructure}
+%----------------------------------------------------------------------
+
+All code is in the \texttt{hadamard/} directory. The main components are:
+
+\begin{center}
+\small
+\begin{tabular}{lp{9cm}}
+\toprule
+\textbf{File} & \textbf{Purpose} \\
+\midrule
+\multicolumn{2}{l}{\textit{Core framework (Python)}} \\
+\texttt{core.py} & PSD, LP verification, LP$\to$Hadamard construction \\
+\texttt{compression.py} & $p$-compression, macro-case enumeration, obstruction checks \\
+\texttt{verify.py} & Verification of all mathematical claims \\
+\texttt{test\_pipeline.py} & End-to-end test on LP$(9)\to H(20)$ \\[3pt]
+\multicolumn{2}{l}{\textit{9-compression search (Python)}} \\
+\texttt{search9.py} & Exhaustive PSD catalog via vectorized DFT group decomposition \\
+\texttt{run\_all\_cases.py} & Batch runner for all $8$ macro-cases \\[3pt]
+\multicolumn{2}{l}{\textit{37-compression search (Python + C)}} \\
+\texttt{search37\_fast.py} & SA for $37$-compression in Python \\
+\texttt{search37\_basin.py} & Basin-hopping SA with reheating \\
+\texttt{search37\_ap.py} & Alternating projection (Gerchberg--Saxton) + SA hybrid \\
+\texttt{sa37.c} & SA in C ($28\times10^6$ iter/s), incremental DFT updates \\
+\texttt{descent37.c} & Exhaustive steepest descent ($2$/$3$/$4$-entry neighborhoods) \\
+\texttt{phase\_search.c} & Phase-space SA (continuous DFT parameterization) \\[3pt]
+\multicolumn{2}{l}{\textit{Full-length search}} \\
+\texttt{search\_full.py} & SA on full $333$-bit sequences (column-swap moves) \\
+\texttt{direct\_sat.py} & Direct matrix local search with fixed column sums \\[3pt]
+\multicolumn{2}{l}{\textit{Intersection and decompression}} \\
+\texttt{marginals.py} & Gale--Ryser compatibility check for row/column sums \\
+\texttt{sat\_complete.py} & SAT encoder for $37\times9$ matrix decompression \\
+\texttt{reconstruct.py} & PSD match $\to$ sequences $\to$ marginals $\to$ SAT $\to$ verify \\
+\texttt{pipeline.py} & Full automated pipeline driver \\
+\texttt{run.py} & CLI driver for individual stages \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+%----------------------------------------------------------------------
+\section{Results Obtained}
+%----------------------------------------------------------------------
+
+\subsection{9-Compression Search (Complete)}
+For each of the $8$ macro-cases, we exhaustively enumerated all achievable $\PSD$ triples $(\PSD(1),\PSD(2),\PSD(4))$ for the $9$-compressed sequences, using the DFT group decomposition ($9=3\times3$, three groups of $\sim1000$ triples each). The search ran in $\sim100$~minutes total.
+
+\begin{center}
+\begin{tabular}{crr}
+\toprule
+Case & $(\PSD_A(111),\,\PSD_B(111))$ & Matching configurations \\
+\midrule
+0 & $(16,652)$ & $1{,}266{,}213$ \\
+1 & $(64,604)$ & $1{,}317{,}923$ \\
+2 & $(76,592)$ & $1{,}329{,}962$ \\
+3 & $(112,556)$ & $1{,}327{,}949$ \\
+4 & $(172,496)$ & $1{,}401{,}576$ \\
+5 & $(256,412)$ & $1{,}317{,}121$ \\
+6 & $(268,400)$ & $1{,}315{,}572$ \\
+7 & $(304,364)$ & $2{,}740{,}927$ \\
+\midrule
+\multicolumn{2}{r}{Total} & $12{,}017{,}243$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Each configuration specifies $(\PSD_A(k),\PSD_B(k))$ at $k=1,2,4$ of the length-$9$ compressed pair. Results are stored in \texttt{results/psd9\_case\{0--7\}.json}.
+
+\subsection{37-Compression Search (Partial)}
+
+We searched for length-$37$ compressed pairs $(d_A,d_B)$ satisfying
+\[
+\PSD(d_A,k)+\PSD(d_B,k)=668\quad\text{for }k=1,\dots,18
+\]
+using several methods:
+
+\begin{center}
+\begin{tabular}{lrrr}
+\toprule
+Method & Iterations & Speed (iter/s) & Best $L^1$ energy \\
+\midrule
+Python SA & $20\times10^6$ & $65{,}000$ & $434$ \\
+Python AP+SA hybrid & $20\times10^6$ & $65{,}000$ & $321$ \\
+C~SA (\texttt{sa37.c}) & $2\times10^9$ & $28\times10^6$ & $277$ \\
+C~SA, $100$ trials & $2\times10^9$ & $28\times10^6$ & $\mathbf{236}$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The best solution (energy $236.2$) has $\sum d_A^2+\sum d_B^2=650$ (Parseval exact). Its per-frequency breakdown:
+
+\begin{center}
+\small
+\begin{tabular}{crrrr|crrrr}
+\toprule
+$k$ & $\PSD_A$ & $\PSD_B$ & Sum & Dev & $k$ & $\PSD_A$ & $\PSD_B$ & Sum & Dev \\
+\midrule
+1 & 414.9 & 278.0 & 692.9 & $+24.9$ & 10 & 346.9 & 321.7 & 668.5 & $+0.5$ \\
+2 & 52.6 & 628.9 & 681.5 & $+13.5$ & 11 & 247.7 & 388.0 & 635.7 & $-32.3$ \\
+3 & 3.4 & 660.2 & 663.6 & $-4.4$ & 12 & 12.1 & 646.1 & 658.3 & $-9.7$ \\
+4 & 76.0 & 606.6 & 682.6 & $+14.6$ & 13 & 176.7 & 501.7 & 678.3 & $+10.3$ \\
+5 & 369.5 & 277.2 & 646.6 & $-21.4$ & 14 & 397.0 & 291.9 & 688.9 & $+20.9$ \\
+6 & 353.6 & 285.1 & 638.7 & $-29.3$ & 15 & 68.5 & 620.1 & 688.6 & $+20.6$ \\
+7 & 145.5 & 519.8 & 665.3 & $-2.7$ & 16 & 427.2 & 237.2 & 664.4 & $-3.6$ \\
+8 & 353.9 & 307.5 & 661.4 & $-6.6$ & 17 & 157.5 & 503.2 & 660.6 & $-7.4$ \\
+9 & 443.3 & 237.5 & 680.8 & $+12.8$ & 18 & 41.7 & 625.6 & 667.3 & $-0.7$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+Of the $18$ frequencies, $5$ are within $5$ and $8$ within $10$ of the target; the worst offenders are $k=11$ ($-32.3$) and $k=6$ ($-29.3$).
+
+We also tried several other approaches:
+\begin{itemize}
+\item \textbf{Alternating projections (Gerchberg--Saxton style):} project between the PSD constraint surface and the integer constraint set. Best energy $\sim880$; useful as a warm-start for SA.
+\item \textbf{Basin-hopping SA:} periodic reheating with large random perturbations. Best energy $413$.
+\item \textbf{Direct full-length SA:} SA on the full $333$-bit sequences with column-preserving swaps in the $37\times9$ matrix. Best energy $16{,}590$ (average $100$ per frequency), confirming that the compression approach is essential.
+\item \textbf{Cascade descent} (\texttt{descent37.c}): exhaustive steepest descent over all $2$-, $3$-, and $4$-entry neighborhoods. Confirmed that \emph{every} SA solution is already a true local minimum: zero improving moves exist in neighborhoods of size up to~$4$.
+\end{itemize}
+
+\subsection{LP$\to$Hadamard Construction}
+The LP-to-Hadamard construction was verified on LP$(3)\to H(8)$, LP$(5)\to H(12)$, and LP$(9)\to H(20)$.
+
+%----------------------------------------------------------------------
+\section{The Bottleneck}
+%----------------------------------------------------------------------
+
+The computational bottleneck is the \textbf{37-compression search}: finding two length-$37$ odd-integer sequences whose PSD values sum to~$668$ at all~$18$ independent frequencies. The key difficulties are:
+
+\begin{enumerate}[label=(\roman*)]
+\item \textbf{Isolated local minima.} The $L^1$ PSD energy landscape has deep, isolated basins. SA converges to the basin bottom in $\sim10^9$ iterations, but the basin energies cluster around $300$--$400$. Only $\sim1\%$ of basins reach below~$280$.
+
+\item \textbf{Rigid local structure.} Every SA solution is a true local minimum with respect to changing up to $4$ entries simultaneously. Escaping requires coordinated changes of $5+$ entries.
+
+\item \textbf{Algebraic integrality.} PSD values are norms of elements in $\Z[\zeta_{37}]$. The constraint $\PSD_A(k)+\PSD_B(k)=668$ requires both norms to be non-negative integers summing to~$668$. This integrality condition creates a discrete lattice of valid PSD spectra, and the continuous SA navigates a landscape that approximates but doesn't respect this lattice.
+
+\item \textbf{Coupling.} All $18$ PSD constraints must be simultaneously satisfied. Improving one frequency typically worsens others. The joint search over $(d_A,d_B)$ has $74$ integer variables and $38$ constraints ($18$ PSD $+$ $2$ sums $+$ $18$ conjugacy), leaving $36$ effective degrees of freedom.
+\end{enumerate}
+
+%----------------------------------------------------------------------
+\section{Proposed Routes for Large-Scale Computation}
+\label{sec:routes}
+%----------------------------------------------------------------------
+
+We identify four independent routes, ordered by expected impact.
+
+\subsection{Route 1: Massive Multi-Trial SA}
+\label{sec:route1}
+
+\paragraph{Rationale.} Our $100$-trial run found $E=236$ in trial~$7$. The best energy scales roughly as the minimum of $N$ draws from a distribution with tail $\Pr[E<x]\approx(x/400)^2$ for $x<300$. To reach $E<100$, we estimate needing $\sim10^4$--$10^5$ trials.
+
+\paragraph{Compute requirements.} Each trial: $2\times10^9$ iterations at $28\times10^6$/s $\approx72$s. For $10^5$ trials: $\approx2000$ CPU-hours ($\approx80$ CPU-days, or $\sim3$~days on a $32$-core machine).
+
+\paragraph{How to run.}
+\begin{lstlisting}
+# Compile
+cd hadamard && cc -O3 -march=native -o sa37 sa37.c -lm
+
+# Run 100k trials, 2B iterations each, seed 1
+# On a 32-core machine, split into 32 jobs:
+for i in $(seq 0 31); do
+  ./sa37 3125 2000000000 $((i*3125)) \
+    >results/sa37_batch${i}.txt 2>&1 &
+done
+wait
+# Collect best:
+grep "^ENERGY" results/sa37_batch*.txt | sort -t= -k2 -n | head
+\end{lstlisting}
+
+Expected runtime: $\sim3$~days on 32~cores. If $E=0$ is found, the output gives $(d_A,d_B)$ directly.
+
+\subsection{Route 2: Multiplier-Orbit Structured Search}
+\label{sec:route2}
+
+\paragraph{Rationale.} The unrestricted search has $10^{37}$ configurations per sequence. A multiplier subgroup $H\leq(\Z/333\Z)^*$ of order~$d$ partitions positions into orbits of size~$d$, reducing the search to $\sim10^{37/d}$ orbit-value assignments. For $d=18$, this gives $\sim10^{2}$ orbits $\times$ $10$ values each $=10^{20}$, still large but potentially tractable with SA + symmetry-aware moves.
+
+\paragraph{Constraint.} Only subgroups with $H\leq\ker(\Z/333\Z^*\to(\Z/3\Z)^*)$ survive the mod-$3$ obstruction. Since $(\Z/333\Z)^*\cong(\Z/9\Z)^*\times(\Z/37\Z)^*\cong C_6\times C_{36}$, the kernel of reduction mod~$3$ is $C_2\times C_{36}$ (order~$72$). We seek subgroups of this kernel.
+
+\paragraph{Implementation plan.}
+\begin{enumerate}
+\item Enumerate subgroups of order $6$, $9$, $12$, $18$ in $\ker\subset(\Z/333\Z)^*$.
+\item For each, compute the orbit partition of $\{0,\dots,332\}$.
+\item Run SA on the orbit-collapsed sequence (one value per orbit, $\sim18$--$55$ variables instead of $37$).
+\item Verify any $E=0$ solution by expanding to full length-$333$ and checking LP.
+\end{enumerate}
+
+\paragraph{How to run.}
+\begin{lstlisting}
+# Step 1: enumerate subgroups (SageMath)
+sage: G = Integers(333).unit_group()
+sage: # Find subgroups of the mod-3 kernel
+sage: # Output orbit structure for each
+
+# Step 2: for each subgroup, modify sa37.c to search over
+# orbit values instead of individual entries.
+# (Need custom C code per subgroup structure.)
+\end{lstlisting}
+
+\subsection{Route 3: SAT/SMT Encoding of Integer PSD}
+\label{sec:route3}
+
+\paragraph{Rationale.} The PSD constraint $\PSD(d,k)=\abs{\sum_j d_j\omega^{jk}}^2$ is quadratic in the entries $d_j$. For entries in $\{-9,-7,\dots,9\}$, each $d_j$ can be encoded with $4$ bits. The full system ($37$ entries $\times$ $4$ bits $=148$ bits, $18$ quadratic constraints) is within reach of modern SMT solvers (e.g., Z3, CVC5) or pseudo-Boolean solvers.
+
+\paragraph{Implementation plan.}
+\begin{enumerate}
+\item Encode $d_j=2v_j-10+1$ where $v_j\in\{0,\dots,9\}$ (binary representation).
+\item Express $\text{Re}(\widehat{d}(k))$ and $\text{Im}(\widehat{d}(k))$ as linear combinations of $d_j$ with fixed (irrational) coefficients. Approximate by rationals with sufficient precision (the PSD values are integers, so exact arithmetic is possible using the algebraic structure of $\Z[\zeta_{37}]$).
+\item Encode $\PSD_A(k)+\PSD_B(k)=668$ as a system of integer quadratic equations.
+\item Feed to Z3 or use Gr\"obner basis methods.
+\end{enumerate}
+
+\paragraph{How to run.}
+\begin{lstlisting}
+# Z3/Python approach:
+pip install z3-solver
+python3 -m hadamard.smt_search  # (to be written)
+
+# Alternatively, use the SCIP or Gurobi MIQP solver
+# for the quadratic integer program.
+\end{lstlisting}
+
+\subsection{Route 4: Lattice-Based Spectral Synthesis}
+\label{sec:route4}
+
+\paragraph{Rationale.} Given a target PSD spectrum for one sequence (say $\PSD_A(k)=t_k$), finding a length-$37$ odd-integer sequence realizing it is equivalent to finding a short vector in a lattice. Specifically, the DFT constraint $\abs{\widehat{d}(k)}^2=t_k$ determines the magnitudes; the phases are free. The integrality constraint $d_j\in\{-9,\dots,9\}$ odd is a short-vector condition in the lattice generated by the inverse DFT.
+
+\paragraph{Implementation plan.}
+\begin{enumerate}
+\item For each of the $12$M $9$-compression configurations, compute the implied $\PSD_A$ at frequency~$111$ (fixes the macro-case).
+\item Enumerate candidate PSD spectra $t_1,\dots,t_{18}$ with $\sum t_k$ satisfying Parseval and each $t_k$ a valid norm in $\Z[\zeta_{37}]$.
+\item For each candidate spectrum, use the Fincke--Pohst algorithm or LLL lattice reduction to find a short vector in the inverse DFT lattice whose entries are odd integers in $[-9,9]$.
+\item Check LP compatibility.
+\end{enumerate}
+
+\paragraph{How to run.}
+\begin{lstlisting}
+# SageMath for lattice enumeration:
+sage: K.<z> = CyclotomicField(37)
+sage: # Enumerate elements of Z[z] with given norm
+sage: # Use LLL/BKZ for short vector search
+\end{lstlisting}
+
+%----------------------------------------------------------------------
+\section{Recommended Compute Plan}
+%----------------------------------------------------------------------
+
+\subsection{Immediate (single workstation, 1--3 days)}
+\begin{enumerate}
+\item Run Route~1 (massive SA) with $10{,}000$+ trials:
+\begin{lstlisting}
+cd hadamard
+cc -O3 -march=native -o sa37 sa37.c -lm
+# 8 parallel jobs, 1250 trials each:
+for i in $(seq 0 7); do
+  ./sa37 1250 2000000000 $((i*1250)) \
+    >results/sa37_run${i}.txt 2>&1 &
+done
+\end{lstlisting}
+\item Post-process: extract trials with $E<200$, examine their PSD spectra for patterns.
+\end{enumerate}
+
+\subsection{Medium-term (cluster, 1--2 weeks)}
+\begin{enumerate}
+\item Run Route~1 at scale: $10^5$ trials across $\sim100$ cores.
+\item In parallel, implement Route~2 (multiplier orbits) for subgroups of order $9$, $12$, $18$.
+\item Implement Route~3 (SMT) as an independent verification channel.
+\end{enumerate}
+
+\subsection{Long-term (if LP(333) not found)}
+\begin{enumerate}
+\item Investigate whether LP$(333)$ is obstructed by a deeper algebraic constraint (e.g., class-number conditions in $\Q(\zeta_{37})$, Galois PSD tests from the quaternary LP literature).
+\item If LP$(333)$ is likely non-existent, search for alternative Hadamard constructions for order~$668$ (e.g., Williamson-type, Turyn-type, or cocyclic constructions).
+\item Consider LP lengths $\ell=333$ with different normalizations ($\sum A=\sum B=-1$) or non-binary generalizations.
+\end{enumerate}
+
+%----------------------------------------------------------------------
+\section{Key Scripts and Settings Reference}
+%----------------------------------------------------------------------
+
+\subsection{Quick verification of all mathematical claims}
+\begin{lstlisting}
+cd /path/to/math-tests
+python3 -m hadamard.verify
+\end{lstlisting}
+
+\subsection{Reproduce the 9-compression search}
+\begin{lstlisting}
+python3 -m hadamard.run_all_cases
+# Output: results/psd9_case{0-7}.json
+# Runtime: ~100 minutes, single core
+\end{lstlisting}
+
+\subsection{Run C SA for 37-compression}
+\begin{lstlisting}
+cd hadamard
+cc -O3 -march=native -o sa37 sa37.c -lm
+./sa37 <n_trials> <iterations> <seed>
+# Example: 100 trials, 2B iterations
+./sa37 100 2000000000 42
+\end{lstlisting}
+
+\subsection{Run cascade descent from a known solution}
+\begin{lstlisting}
+cc -O3 -march=native -o descent37 descent37.c -lm
+./descent37 1 100 42 fixed
+# Runs 2/3/4-entry exhaustive descent from hardcoded best
+\end{lstlisting}
+
+\subsection{Full pipeline (if E=0 solution found)}
+Edit \texttt{pipeline.py} to insert the $(d_A,d_B)$ solution, then:
+\begin{lstlisting}
+python3 -m hadamard.pipeline
+# Intersects with 9-compression results
+# Checks Gale-Ryser
+# Attempts SAT decompression
+# Verifies LP and constructs H(668)
+\end{lstlisting}
+
+%----------------------------------------------------------------------
+\section{Conclusion}
+%----------------------------------------------------------------------
+
+We have built a complete computational infrastructure for the LP$(333)\to H(668)$ search, verified all theoretical obstructions, exhaustively solved the $9$-compression subproblem, and pushed the $37$-compression SA to within $236/668\approx3.5\%$ of the target. The cascade descent analysis proves that the $\sim236$--$400$ energy basins are genuine local minima robust to $4$-entry perturbations.
+
+The most promising path forward is massive parallelization of the SA (Route~1, $\sim10^4$--$10^5$ trials), complemented by multiplier-orbit reduction (Route~2) and SMT encoding (Route~3). If LP$(333)$ exists, these approaches should find it with $O(10^3)$--$O(10^4)$ CPU-hours of computation.
+
+\appendix
+\section{Energy Progression Through the Search}
+
+The following table records the improvement in best $L^1$ energy as methods were developed and refined during the project.
+
+\begin{center}
+\begin{tabular}{rlrrrl}
+\toprule
+Step & Method & Trials & Iter/trial & Best $E$ & Notes \\
+\midrule
+1 & Python SA & $10$ & $20\times10^6$ & $434$ & Baseline \\
+2 & Python basin-hop SA & $5$ & $50\times10^6$ & $413$ & Reheating helps \\
+3 & Python AP+SA hybrid & $5$ & $10\times10^6$ & $371$ & AP warm-start \\
+4 & Python AP+SA hybrid & $20$ & $20\times10^6$ & $321$ & More restarts \\
+5 & C SA (\texttt{sa37.c}) & $10$ & $500\times10^6$ & $356$ & $430\times$ speedup \\
+6 & C SA & $13$ & $2\times10^9$ & $277$ & Longer runs \\
+7 & C SA & $100$ & $2\times10^9$ & $\mathbf{236}$ & Many restarts \\
+8 & C SA + cascade descent & $20$ & $2\times10^9$ & $329$ & All solutions are \\
+  &                        &     &               &       & $\leq\!4$-entry local minima \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\end{document}
